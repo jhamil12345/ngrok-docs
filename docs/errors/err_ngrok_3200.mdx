@@ -1,14 +1,67 @@
----
-hide_table_of_contents: true
-displayed_sidebar: docs
----
+from flask import Flask, request
+from twilio.twiml.messaging_response import MessagingResponse
+import openai
 
-import ErrorDetails from "/src/components/ErrorDetails";
+# Configura tu clave de API de OpenAI
 
-# ERR_NGROK_3200
 
-### Message
+app = Flask(__name__)
 
-Tunnel `HOSTNAME` not found
+# Función para obtener respuestas de ChatGPT
+def obtener_respuesta_chatgpt(mensaje):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Eres un asistente útil"},
+                {"role": "user", "content": mensaje},
+            ],
+            max_tokens=150,
+            temperature=0.7
+        )
+        return response.choices[0].message['content'].strip()
+    except Exception as e:
+        return str(e)
 
-<ErrorDetails error="err_ngrok_3200" />
+# Función para manejar la lógica del bot
+def manejar_mensaje(mensaje):
+    # Comienza con un saludo y un menú principal
+    if mensaje.lower() in ['hola', 'buenos días', 'buenas tardes']:
+        return ("¡Hola! Bienvenido a la Distribuidora CUTYS. ¿En qué puedo ayudarte hoy?\n"
+                "1. Información sobre productos\n"
+                "2. Realizar un pedido\n"
+                "3. Consultar el estado de un pedido\n"
+                "4. Hablar con un representante")
+    
+    if mensaje == '1':
+        return "Tenemos una amplia variedad de productos. ¿Sobre qué producto te gustaría obtener información?"
+    
+    if mensaje == '2':
+        return "Para realizar un pedido, por favor indica el nombre del producto y la cantidad que deseas."
+    
+    if mensaje == '3':
+        return "Para consultar el estado de tu pedido, por favor proporciona el número de pedido."
+    
+    if mensaje == '4':
+        return "En breve te atenderá uno de nuestros representantes. Por favor, espera un momento."
+
+    # Lógica adicional para pedidos y consultas
+    if 'pedido' in mensaje.lower():
+        return "Estamos procesando tu pedido. Pronto recibirás una confirmación."
+
+    # Si ninguna opción coincide, pasa el mensaje a ChatGPT
+    return obtener_respuesta_chatgpt(mensaje)
+
+@app.route("/whatsapp", methods=['POST'])
+def whatsapp_reply():
+    msg = request.form.get('Body')
+    response = MessagingResponse()
+    reply = response.message()
+
+    respuesta = manejar_mensaje(msg)
+    reply.body(respuesta)
+
+    return str(response)
+
+if __name__ == "__main__":
+    app.run(debug=True)
